@@ -4438,7 +4438,78 @@ let DATA = {
   }
 };
 
-/* ============ HELPERS ============ */
+/* ============ USER-DONE (persönliches Häkchen, localStorage) ============ */
+// Speichert pro User, welche Traktanden er/sie "mental abgehakt" hat.
+// NICHT mit Excel-Status verknüpft - nur für mich sichtbar, überlebt Reload.
+const UserDone = (() => {
+  let loaded = null;   // Set<string> mit content-basierten Keys
+  let userId = null;
+
+  function getUserId() {
+    if (userId) return userId;
+    try {
+      const acc = (typeof AuthService !== 'undefined') && AuthService.getAccount && AuthService.getAccount();
+      userId = (acc && (acc.username || acc.homeAccountId)) || 'anon';
+    } catch { userId = 'anon'; }
+    return userId;
+  }
+
+  function storageKey() {
+    return `bbz.fusi.done.${getUserId()}`;
+  }
+
+  // Content-basierter Key, damit Reihenfolge/Index-Änderungen in Excel nichts zerschiessen
+  function doneKey(item) {
+    if (!item) return '';
+    const d = (item.d || '').toString().trim();
+    const t = (item.t || '').toString().trim().toLowerCase();
+    const e = (item.e || '').toString().trim().toLowerCase();
+    return `${d}|${t}|${e}`;
+  }
+
+  function load() {
+    if (loaded) return loaded;
+    try {
+      const raw = localStorage.getItem(storageKey());
+      const arr = raw ? JSON.parse(raw) : [];
+      loaded = new Set(Array.isArray(arr) ? arr : []);
+    } catch {
+      loaded = new Set();
+    }
+    return loaded;
+  }
+
+  function save() {
+    if (!loaded) return;
+    try {
+      localStorage.setItem(storageKey(), JSON.stringify([...loaded]));
+    } catch (e) {
+      console.warn('[UserDone] localStorage write failed', e);
+    }
+  }
+
+  function is(item) {
+    return load().has(doneKey(item));
+  }
+
+  function toggle(item) {
+    const k = doneKey(item);
+    const s = load();
+    if (s.has(k)) s.delete(k);
+    else s.add(k);
+    save();
+    return s.has(k);
+  }
+
+  function reset() {
+    loaded = new Set();
+    try { localStorage.removeItem(storageKey()); } catch {}
+  }
+
+  return { is, toggle, reset, doneKey };
+})();
+
+
 const PEOPLE_COLORS = {
   'af': '#004078', 'ml': '#950e13', 'bae': '#0e7b3e', 'pb': '#b87200',
   'pw': '#6b21a8', 'ss': '#0891b2', 'ub': '#7c2d12', 'mr': '#be185d',
@@ -5369,6 +5440,9 @@ function renderFusiSearchResults() {
     return haystack.includes(q);
   }).sort((a, b) => (b.d || '').localeCompare(a.d || ''));
 
+  // User-spezifisches Häkchen aus localStorage
+  hits.forEach(f => { f._done = UserDone.is(f); });
+
   const escapedQ = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const hiRe = new RegExp(`(${escapedQ})`, 'gi');
   const hilite = (txt) => {
@@ -5463,6 +5537,9 @@ function renderFusi() {
       return ai - bi;
     });
   }
+
+  // User-spezifisches Häkchen aus localStorage (überschreibt _done für Rendering)
+  focusItems.forEach(f => { f._done = UserDone.is(f); });
 
   // Group by action
   const grpDecide = focusItems.filter(f => f.a && f.a.includes('toDecide') && !f._done);
@@ -5983,12 +6060,9 @@ function saveQuickAdd() {
 
 function toggleTrakDone(key) {
   const item = DATA.fusi.find(f => itemKey(f) === key);
-  if (item) {
-    const newDone = !item._done;
-    item._done = newDone;
-    Store.updateFusi(item._id, { _done: newDone });
-    render();
-  }
+  if (!item) return;
+  UserDone.toggle(item);   // persistiert in localStorage pro User
+  render();
 }
 
 function reorderTraktanden(draggedKey, targetKey, isAbove) {
@@ -8532,8 +8606,8 @@ function saveDetailChanges() {
     l: document.getElementById('ed_link').value || null,
     g: document.getElementById('ed_gedanken').value || null,
     o: document.getElementById('ed_output').value || null,
-    s: newStatus || null,
-    _done: newStatus.toLowerCase().includes('erledigt') || newStatus.toLowerCase().includes('entscheid')
+    s: newStatus || null
+    // _done nicht mehr hier - ist user-lokal (UserDone), nicht an Status gekoppelt
   };
 
   Object.assign(item, changes);
@@ -8620,11 +8694,13 @@ function moveTraktandum() {
   const updatedOutput = item.o ? `${item.o}\n${moveNote}` : moveNote;
   const originalChanges = {
     s: 'Erledigt',
-    o: updatedOutput,
-    _done: true
+    o: updatedOutput
   };
   Object.assign(item, originalChanges);
   Store.updateFusi(item._id, originalChanges);
+
+  // User-lokal: Verschobenes Original ist für mich erledigt
+  if (!UserDone.is(item)) UserDone.toggle(item);
 
   closeDetail();
   render();

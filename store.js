@@ -43,7 +43,6 @@ const Store = (() => {
   // FüSi columns: FüSi, Thema, Aktion, erfasst durch, Input, Link, Gedanken, Output, Status
   const mapFusiRow = (row) => {
     const statusRaw = (row._values[8] || '').toString().trim();
-    const statusLower = statusRaw.toLowerCase();
     return {
       _index: row._index,
       _id: `fusi_${row._index}`,
@@ -55,9 +54,9 @@ const Store = (() => {
       l: row._values[5],
       g: row._values[6],
       o: row._values[7],
-      s: statusRaw,
-      // _done ist abgeleitet: Status "erledigt" ODER "entscheid" heisst: behandelt/abgehakt
-      _done: statusLower.includes('erledigt') || statusLower.includes('entscheid')
+      s: statusRaw
+      // _done wird NICHT mehr hier gesetzt - ist jetzt user-spezifisch (localStorage)
+      // Siehe UserDone-Helper in index.html
     };
   };
   const fusiToRow = (item) => [
