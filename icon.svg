@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Hintergrund (abgerundetes Quadrat wie iOS-Apps erwarten) -->
+  <rect width="512" height="512" rx="96" ry="96" fill="#004078"/>
+  <!-- "bbz" - weiss, Space Grotesk-ähnlich (DejaVu Sans Bold als Fallback) -->
+  <text x="256" y="280" text-anchor="middle" fill="#ffffff"
+        font-family="'Space Grotesk', 'DejaVu Sans', sans-serif"
+        font-weight="700" font-size="180" letter-spacing="-6">bbz</text>
+  <!-- Roter Akzent-Punkt (wie • im Logo) -->
+  <circle cx="256" cy="370" r="22" fill="#950e13"/>
+</svg>

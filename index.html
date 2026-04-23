@@ -2,8 +2,30 @@
 <html lang="de-CH">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>bbz Führung – Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>bbz Führung – Meeting Hub</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#004078">
+<meta name="color-scheme" content="light">
+
+<!-- Favicons -->
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icon-16.png">
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+
+<!-- iOS Web App -->
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="bbz Führung">
+
+<!-- Windows Tile -->
+<meta name="msapplication-TileColor" content="#004078">
+<meta name="msapplication-TileImage" content="icon-192.png">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -2630,18 +2652,69 @@
       z-index: 200;
       transform: translateX(-100%);
       transition: transform 0.25s;
+      /* PWA: safe-area für iPhone Notch */
+      padding-top: calc(16px + env(safe-area-inset-top));
+      padding-bottom: calc(16px + env(safe-area-inset-bottom));
+      padding-left: calc(16px + env(safe-area-inset-left));
     }
     .sidebar.open { transform: translateX(0); }
     .mobile-toggle { display: inline-flex; }
-    .main { padding: 16px 18px 48px; }
-    .topbar { margin-bottom: 16px; }
+    .main {
+      padding: 16px 18px 48px;
+      padding-left: calc(18px + env(safe-area-inset-left));
+      padding-right: calc(18px + env(safe-area-inset-right));
+      padding-bottom: calc(48px + env(safe-area-inset-bottom));
+    }
+    .topbar {
+      margin-bottom: 16px;
+      padding-top: env(safe-area-inset-top);
+    }
     .topbar .title-block h1 { font-size: 20px; }
     .search input { width: 100%; }
     .search { flex: 1; }
     .kpi .kpi-value { font-size: 22px; }
-    .detail-panel { width: 100%; padding: 20px; }
+    .detail-panel {
+      width: 100%;
+      padding: 20px;
+      padding-top: calc(20px + env(safe-area-inset-top));
+      padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    }
     .traktandum { grid-template-columns: 1fr auto; }
     .trak-number { display: none; }
+
+    /* Touch-Targets min 44x44 (iOS HIG) */
+    .trak-check, .btn, button:not(.inline-btn) { min-height: 40px; }
+    .mobile-toggle { min-width: 44px; min-height: 44px; }
+
+    /* iOS-Safari: hover nervt auf Touch, wenn's als Click klebt */
+    .trak-card:hover { transform: none; }
+
+    /* iOS: Inputs unter 16px triggern Auto-Zoom beim Fokussieren. Also alle auf 16px+ */
+    input, textarea, select, [contenteditable] {
+      font-size: 16px !important;
+    }
+  }
+
+  /* PWA standalone: entfernt Browser-UI-Padding, nutzt volle Höhe */
+  @media (display-mode: standalone) {
+    body {
+      /* Verhindert iOS-Bounce beim Scrollen */
+      overscroll-behavior-y: none;
+    }
+    .topbar { padding-top: env(safe-area-inset-top); }
+  }
+
+  /* Touch-Geräte: besseres Tap-Feedback, kein Text-Selection bei Buttons */
+  @media (hover: none) and (pointer: coarse) {
+    button, .nav-item, .trak-card, .status-chip {
+      -webkit-tap-highlight-color: rgba(0, 64, 120, 0.15);
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    input, textarea, [contenteditable] {
+      -webkit-user-select: text;
+      user-select: text;
+    }
   }
 
   .backdrop {
@@ -9404,6 +9477,90 @@ window.addEventListener('beforeunload', (e) => {
   }
   GraphService.closeSession();
 });
+
+/* ============ PWA INSTALL PROMPT ============ */
+(() => {
+  let deferredPrompt = null;
+  const DISMISS_KEY = 'bbz.pwa.install.dismissed';
+
+  function isStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+           window.navigator.standalone === true;
+  }
+
+  function isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  }
+
+  function showBanner(html, onInstall) {
+    if (document.getElementById('pwaBanner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'pwaBanner';
+    banner.style.cssText = `
+      position: fixed; bottom: 16px; left: 16px; right: 16px;
+      background: var(--bbz-blue); color: white; padding: 14px 16px;
+      border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+      z-index: 9999; display: flex; align-items: center; gap: 12px;
+      font-size: 14px; max-width: 480px; margin: 0 auto;
+      padding-bottom: calc(14px + env(safe-area-inset-bottom));
+    `;
+    banner.innerHTML = html;
+    const dismissBtn = banner.querySelector('[data-act="dismiss"]');
+    const installBtn = banner.querySelector('[data-act="install"]');
+    if (dismissBtn) dismissBtn.onclick = () => {
+      banner.remove();
+      try { localStorage.setItem(DISMISS_KEY, Date.now()); } catch {}
+    };
+    if (installBtn && onInstall) installBtn.onclick = onInstall;
+    document.body.appendChild(banner);
+  }
+
+  function wasDismissedRecently() {
+    try {
+      const t = parseInt(localStorage.getItem(DISMISS_KEY), 10);
+      if (!t) return false;
+      // 14 Tage Ruhe nach Dismiss
+      return (Date.now() - t) < 14 * 24 * 60 * 60 * 1000;
+    } catch { return false; }
+  }
+
+  // Android/Chrome: beforeinstallprompt-Event
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (isStandalone() || wasDismissedRecently()) return;
+    showBanner(
+      `<span style="flex:1">📱 Diese App auf dem Home-Bildschirm installieren?</span>
+       <button data-act="install" style="background:white;color:var(--bbz-blue);border:none;padding:8px 14px;border-radius:6px;font-weight:600;cursor:pointer;">Installieren</button>
+       <button data-act="dismiss" style="background:transparent;color:white;border:1px solid rgba(255,255,255,0.4);padding:8px 12px;border-radius:6px;cursor:pointer;">Später</button>`,
+      async () => {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        deferredPrompt = null;
+        document.getElementById('pwaBanner')?.remove();
+        if (outcome !== 'accepted') {
+          try { localStorage.setItem(DISMISS_KEY, Date.now()); } catch {}
+        }
+      }
+    );
+  });
+
+  // iOS-Safari: kein beforeinstallprompt, also Hinweis nach Login zeigen
+  window.addEventListener('load', () => {
+    if (!isIOS() || isStandalone() || wasDismissedRecently()) return;
+    // Erst nach 5 Sek, damit Login-Flow nicht gestört wird
+    setTimeout(() => {
+      if (isStandalone() || wasDismissedRecently()) return;
+      showBanner(
+        `<span style="flex:1">📱 Auf iPhone installieren: <strong>Teilen</strong>
+         ⬆ → <strong>Zum Home-Bildschirm</strong></span>
+         <button data-act="dismiss" style="background:transparent;color:white;border:1px solid rgba(255,255,255,0.4);padding:8px 12px;border-radius:6px;cursor:pointer;">OK</button>`,
+        null
+      );
+    }, 5000);
+  });
+})();
 
 boot();
 </script>
