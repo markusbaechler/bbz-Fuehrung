@@ -4675,8 +4675,10 @@ let state = {
 function renderDashboard() {
   const lc = s => (s || '').toString().toLowerCase().trim();
 
-  // Helper: Zähle Status-Werte pro Bereich
-  const countBy = (list, status) => list.filter(x => lc(x.s) === status).length;
+  // Substring-Match: Status-Werte in Excel haben u.U. erklärende Zusätze
+  // z.B. "Entscheid (es wurde eine Grundlage geschaffen)" - soll als "Entscheid" zählen.
+  // Soft-deleted ("via App gelöscht") ist bereits in store.js ausgefiltert.
+  const countBy = (list, statusKey) => list.filter(x => lc(x.s).includes(statusKey)).length;
 
   const stats = {
     entscheid: {
@@ -4770,8 +4772,9 @@ function renderDashboard() {
 // ========== Stati-Zeilen für Strategietage / Offsite / Teamtage ==========
 function renderDashOtherStats(activeView) {
   // Helper: zählt Items eines Status in einem Bereich
-  function countIn(list, statusLower) {
-    return list.filter(x => (x.s || '').toLowerCase().trim() === statusLower).length;
+  function countIn(list, statusKey) {
+    // Substring-Match wg. Excel-Werten wie "Entscheid (es wurde eine Grundlage geschaffen)"
+    return list.filter(x => (x.s || '').toLowerCase().trim().includes(statusKey)).length;
   }
   const sources = [
     { key: 'st',  label: 'Strategietage', list: DATA.st,  viewPrefix: 'st:'  },
@@ -5335,7 +5338,8 @@ function renderDashTable(view) {
   else if (view.includes('|')) {
     const [status, src] = view.split('|');
     const list = src === 'fusi' ? DATA.fusi : src === 'st' ? DATA.st : DATA.off;
-    rows = list.filter(x => lc(x.s) === status);
+    // Substring-Match wg. Excel-Werten wie "Entscheid (es wurde eine Grundlage geschaffen)"
+    rows = list.filter(x => lc(x.s).includes(status));
     title = `${SRC_LABELS[src]} – ${STATUS_LABELS[status]}`;
     cols = colsFor(src);
     rowClickHandler = clickFor(src);
@@ -5344,15 +5348,15 @@ function renderDashTable(view) {
   else if (STATUS_LABELS[view]) {
     // Tabelle zeigt FüSi + ST + Offsite gemeinsam, Spalten: Datum · Bereich · Thema · Person
     const combined = [];
-    DATA.fusi.filter(x => lc(x.s) === view).forEach(x => combined.push({
+    DATA.fusi.filter(x => lc(x.s).includes(view)).forEach(x => combined.push({
       _src: 'fusi', _srcLabel: 'FüSi',
       d: x.d, t: x.t, person: x.e, fazit: x.o, _orig: x
     }));
-    DATA.st.filter(x => lc(x.s) === view).forEach(x => combined.push({
+    DATA.st.filter(x => lc(x.s).includes(view)).forEach(x => combined.push({
       _src: 'st', _srcLabel: 'Strategietag',
       d: x.d, t: x.t, person: x.e, fazit: x.o, _orig: x
     }));
-    DATA.off.filter(x => lc(x.s) === view).forEach(x => combined.push({
+    DATA.off.filter(x => lc(x.s).includes(view)).forEach(x => combined.push({
       _src: 'off', _srcLabel: 'Offsite',
       d: x.d, t: x.t, person: x.l, fazit: x.e, _orig: x
     }));
@@ -5721,10 +5725,12 @@ function renderFusi() {
 
 // Status-Übersicht rechts in der Sidebar
 function renderSidebarStatusBlock() {
+  // Substring-Match wg. Excel-Werten wie "Entscheid (es wurde eine Grundlage geschaffen)"
+  const has = (f, key) => (f.s || '').toLowerCase().includes(key);
   const counts = {
-    'In Arbeit':  DATA.fusi.filter(f => (f.s || '').toLowerCase() === 'in arbeit').length,
-    'Parkplatz':  DATA.fusi.filter(f => (f.s || '').toLowerCase() === 'parkplatz').length,
-    'Entscheid':  DATA.fusi.filter(f => (f.s || '').toLowerCase() === 'entscheid').length
+    'In Arbeit':  DATA.fusi.filter(f => has(f, 'in arbeit')).length,
+    'Parkplatz':  DATA.fusi.filter(f => has(f, 'parkplatz')).length,
+    'Entscheid':  DATA.fusi.filter(f => has(f, 'entscheid')).length
   };
   const items = [
     { label: 'In Arbeit', key: 'in arbeit', color: '#1565c0', count: counts['In Arbeit'], strong: true },
