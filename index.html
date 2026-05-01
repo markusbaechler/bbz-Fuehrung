@@ -3789,6 +3789,11 @@
   .eb-quick-add {
     margin-bottom: 12px;
   }
+  .eb-date-hint {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-subtle);
+  }
 
   .eb-list {
     display: flex;
@@ -6253,12 +6258,14 @@ function renderEarlybird() {
             <input type="text" id="ebQuickInput" placeholder="Thema – kurz und prägnant…" autofocus>
             <textarea id="ebQuickMessage" placeholder="Message an das Team…" rows="2" style="width:100%; margin-top:8px; padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-size:13px; resize:vertical;"></textarea>
             <div class="quick-add-meta">
+              <input type="date" id="ebQuickDate" value="${state.ebFocusDate || nextMondayStr()}" title="Datum (bevorzugt Montag)" style="padding:6px 10px; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-size:13px; background:#fff;">
               <select id="ebQuickLead">
                 ${DATA.dropdowns.persons.map(p => `<option value="${p}">${p}</option>`).join('')}
               </select>
               <button class="btn btn-primary" style="margin-left:auto;" onclick="saveEbQuickAdd()">Hinzufügen</button>
               <button class="btn" onclick="toggleEbQuickAdd()">Abbrechen</button>
             </div>
+            <div id="ebQuickDateHint" class="eb-date-hint">Bevorzugt Montage (regulärer EarlyBird-Tag). Sondertermine möglich.</div>
           </div>
         ` : ''}
 
@@ -6404,23 +6411,55 @@ function toggleEbQuickAdd() {
   state.ebQuickAddOpen = !state.ebQuickAddOpen;
   render();
   if (state.ebQuickAddOpen) {
-    setTimeout(() => document.getElementById('ebQuickInput')?.focus(), 50);
+    setTimeout(() => {
+      document.getElementById('ebQuickInput')?.focus();
+      attachEbDateHintListener();
+    }, 50);
   }
+}
+
+function attachEbDateHintListener() {
+  const dateInput = document.getElementById('ebQuickDate');
+  const hint = document.getElementById('ebQuickDateHint');
+  if (!dateInput || !hint) return;
+  const defaultHint = 'Bevorzugt Montage (regulärer EarlyBird-Tag). Sondertermine möglich.';
+  const updateHint = () => {
+    const val = dateInput.value;
+    if (!val) { hint.textContent = defaultHint; hint.style.color = ''; return; }
+    const d = new Date(val + 'T12:00:00');
+    const wd = d.getDay();
+    const wdNames = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+    if (wd !== 1) {
+      hint.innerHTML = `<span style="color:var(--bbz-red)">⚠ Sondertermin</span> — ${wdNames[wd]}, ${fmtDate(val)}. Üblich sind Montage.`;
+    } else {
+      hint.innerHTML = `✓ Montag, ${fmtDate(val)}`;
+      hint.style.color = '';
+    }
+  };
+  updateHint();
+  dateInput.addEventListener('change', updateHint);
 }
 
 function saveEbQuickAdd() {
   const input = document.getElementById('ebQuickInput');
   const message = document.getElementById('ebQuickMessage');
+  const dateInput = document.getElementById('ebQuickDate');
   const lead = document.getElementById('ebQuickLead').value;
   if (!input.value.trim()) return;
+  const chosenDate = (dateInput && dateInput.value) ? dateInput.value : state.ebFocusDate;
   const newItem = {
-    d: state.ebFocusDate,
+    d: chosenDate,
     b: input.value.trim(),
     l: lead,
     k: (message && message.value.trim()) ? message.value.trim() : null,
     s: null
   };
   Store.addEb(newItem);
+  // Wenn das Datum vom aktuellen Fokus abweicht → zum neuen Datum springen,
+  // damit der Nutzer das eben erfasste Thema sieht
+  if (chosenDate && chosenDate !== state.ebFocusDate) {
+    state.ebFocusDate = chosenDate;
+  }
   state.ebQuickAddOpen = false;
   render();
 }
