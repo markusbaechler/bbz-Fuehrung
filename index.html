@@ -6609,8 +6609,17 @@ function renderStrategietage() {
       return ai - bi;
     });
   } else {
-    // Default: nach Themen-Titel (der numerisch präfixiert ist wie "01. Blitzlicht")
-    focusItems.sort((a, b) => (a.t || '').localeCompare(b.t || ''));
+    // Default: Startzeit → Nr → Titel
+    focusItems.sort((a, b) => {
+      const ta = (a.stz || '99:99').toString();
+      const tb = (b.stz || '99:99').toString();
+      if (ta !== tb) return ta.localeCompare(tb);
+      const na = (a.tra || '999').toString();
+      const nb = (b.tra || '999').toString();
+      const cmp = na.localeCompare(nb, undefined, { numeric: true });
+      if (cmp !== 0) return cmp;
+      return (a.t || '').localeCompare(b.t || '');
+    });
   }
 
   const focusIsUpcoming = state.stFocusDate && state.stFocusDate >= todayStr;
@@ -6654,6 +6663,8 @@ function renderStrategietage() {
             <div class="quick-add open eb-quick-add">
               <input type="text" id="stQuickInput" placeholder="Thema…" autofocus>
               <div class="quick-add-meta">
+                <input type="text" id="stQuickTra" placeholder="Nr." style="width:70px; padding:6px 8px; border:1px solid var(--border); border-radius:4px; font-family:inherit;">
+                <input type="time" id="stQuickStart" style="width:100px; padding:6px 8px; border:1px solid var(--border); border-radius:4px; font-family:inherit;">
                 <select id="stQuickPerson">
                   ${DATA.dropdowns.persons.map(p => `<option value="${p}">${p}</option>`).join('')}
                 </select>
@@ -6732,35 +6743,70 @@ function renderStNewDayForm() {
 function renderStCard(s) {
   const expanded = !!state.stExpandedIds[s._id];
   const color = PEOPLE_COLORS[s.e] || '#5a6370';
+
+  // Nr aus Traktandum-Feld; fallback: Präfix aus Titel parsen (Migrations-Pfad
+  // für Items, die noch im alten Format "01. Blitzlicht" gespeichert sind)
   const titleParts = (s.t || '').match(/^(\d+)\.\s*(.+)$/);
-  const nrLabel = titleParts ? titleParts[1].padStart(2, '0') : '';
-  const titleText = titleParts ? titleParts[2] : (s.t || '(ohne Titel)');
-  const isFrame = titleParts && (titleParts[1] === '1' || titleParts[1] === '98' || titleParts[1] === '99');
+  const nr = (s.tra || '').toString().trim()
+            || (titleParts ? titleParts[1] : '');
+  const titleText = titleParts && !s.tra ? titleParts[2] : (s.t || '(ohne Titel)');
+  const isSubtopic = nr.includes('.');
+  const isFrame = nr === '1' || nr === '98' || nr === '99';
+  const nrBadge = nr ? `<div class="off-nr ${isSubtopic ? 'off-nr-sub' : ''}">${escapeHtml(nr)}</div>` : '';
+
+  // Gedanken-Preview im collapsed state (erste Zeile)
+  const gPreview = (s.g || '').toString().split(/\r?\n/)[0].trim();
+  const gTrimmed = gPreview.length > 140 ? gPreview.slice(0, 140) + '…' : gPreview;
 
   return `
-    <div class="st-card ${expanded ? 'expanded' : ''} ${isFrame ? 'st-frame' : ''}" data-stid="${s._id}">
+    <div class="st-card off-card ${expanded ? 'expanded' : ''} ${isFrame ? 'st-frame' : ''}" data-stid="${s._id}">
       <div class="st-drag-handle" draggable="true" data-stid="${s._id}" title="Zum Priorisieren ziehen">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="5" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="9" cy="19" r="1.5"/><circle cx="15" cy="5" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="15" cy="19" r="1.5"/></svg>
       </div>
       <div class="st-card-inner">
-        <div class="st-card-head" onclick="toggleStExpand('${s._id}')">
-          ${nrLabel ? `<div class="st-nr">${nrLabel}</div>` : ''}
+        <div class="st-card-head off-card-head" onclick="toggleStExpand('${s._id}')">
+          <div class="off-time-col">
+            ${s.stz ? `<div class="off-time">${escapeHtml(s.stz)}</div>` : '<div class="off-time off-time-empty">—</div>'}
+            ${s.zb ? `<div class="off-duration">${escapeHtml(s.zb)}</div>` : ''}
+          </div>
           <div class="st-title">${escapeHtml(titleText)}</div>
           <div class="st-head-right">
             ${s.e ? `<div class="trak-avatar" style="background:${color}" title="${s.e}">${s.e.slice(0,2)}</div>` : ''}
+            ${nrBadge}
             ${s.s ? `<span class="status-badge">${escapeHtml(s.s)}</span>` : ''}
             <svg class="st-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
           </div>
         </div>
+        ${!expanded && gTrimmed ? `
+          <div class="off-collapsed-preview">
+            <span class="off-collapsed-label">…</span>
+            <span>${escapeHtml(gTrimmed)}</span>
+          </div>
+        ` : ''}
 
         ${expanded ? `
           <div class="st-card-body">
             <div class="st-meta-row">
               <div class="st-meta-field">
+                <label>Nr.</label>
+                <input type="text" value="${escapeHtml(s.tra || '')}" style="width:70px; font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:4px;"
+                  onblur="updateStField('${s._id}', 'tra', this.value)">
+              </div>
+              <div class="st-meta-field">
                 <label>Person</label>
                 <select onchange="updateStField('${s._id}', 'e', this.value)">
                   ${DATA.dropdowns.persons.map(p => `<option value="${p}" ${s.e===p?'selected':''}>${p}</option>`).join('')}
                 </select>
+              </div>
+              <div class="st-meta-field">
+                <label>Start</label>
+                <input type="time" value="${escapeHtml(s.stz || '')}" style="width:90px; font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:4px;"
+                  onblur="updateStField('${s._id}', 'stz', this.value)">
+              </div>
+              <div class="st-meta-field">
+                <label>Zeitbudget</label>
+                <input type="text" value="${escapeHtml(s.zb || '')}" placeholder="z.B. 30 min" style="width:90px; font-size:12px; padding:4px 8px; border:1px solid var(--border); border-radius:4px;"
+                  onblur="updateStField('${s._id}', 'zb', this.value)">
               </div>
               <button class="eb-card-delete" onclick="deleteStWithConfirm('${s._id}')" title="Löschen" style="margin-left:auto; align-self:flex-end;">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
@@ -6791,7 +6837,7 @@ function renderStCard(s) {
             </div>
 
             <div class="st-section st-section-fazit">
-              <div class="st-section-label">Fazit</div>
+              <div class="st-section-label">✓ Fazit</div>
               <div class="st-section-value" contenteditable="true"
                 data-placeholder="Ergebnis / Entscheide aus dem Strategietag"
                 onblur="updateStField('${s._id}', 'o', this.innerText)"
@@ -6838,13 +6884,19 @@ function toggleStQuickAdd() {
 function saveStQuickAdd() {
   const title = document.getElementById('stQuickInput').value.trim();
   if (!title) return;
+  const tra = document.getElementById('stQuickTra').value.trim();
+  const start = document.getElementById('stQuickStart').value;
   const person = document.getElementById('stQuickPerson').value;
   Store.addSt({
     d: state.stFocusDate,
     t: title,
     k: null,
     e: person,
-    i: null, l: null, g: null, o: null, s: null
+    i: null, l: null, g: null,
+    tra: tra || null,
+    stz: start || null,
+    zb: null,
+    o: null, s: null
   });
   state.stQuickAddOpen = false;
   render();
@@ -6868,18 +6920,23 @@ function saveNewStrategietag() {
     return;
   }
   if (useTemplate) {
+    // Default-Tagesstruktur: 08:00 – 17:00 mit Pausen
+    // Nr in eigener Spalte, Titel ohne Präfix
     const template = [
-      { nr: '1',  title: 'Blitzlicht: Check-in' },
-      { nr: '2',  title: 'Projektportfolio' },
-      { nr: '3',  title: 'Fokusziele' },
-      { nr: '4',  title: 'Personelles' },
-      { nr: '98', title: 'Varia' },
-      { nr: '99', title: 'Blitzlicht: Check-out' }
+      { nr: '1',  title: 'Blitzlicht: Check-in',   stz: '08:00', zb: '30 min' },
+      { nr: '2',  title: 'Projektportfolio',       stz: '08:30', zb: '2 Std'  },
+      { nr: '3',  title: 'Fokusziele',             stz: '11:00', zb: '1:30 Std' },
+      { nr: '4',  title: 'Personelles',            stz: '13:30', zb: '1:30 Std' },
+      { nr: '98', title: 'Varia',                  stz: '15:00', zb: '30 min' },
+      { nr: '99', title: 'Blitzlicht: Check-out',  stz: '15:30', zb: '30 min' }
     ];
     template.forEach(t => {
       Store.addSt({
-        d: date, t: `${t.nr}. ${t.title}`,
-        k: null, e: null, i: null, l: null, g: null, o: null, s: null
+        d: date, t: t.title,
+        k: null, e: null,
+        i: null, l: null, g: null,
+        tra: t.nr, stz: t.stz, zb: t.zb,
+        o: null, s: null
       });
     });
   }
@@ -6939,9 +6996,19 @@ function deleteStWithConfirm(id) {
 function reorderSt(draggedId, targetId, isAbove) {
   const items = DATA.st.filter(s => s.d === state.stFocusDate);
   if (!state.stItemOrder[state.stFocusDate]) {
+    // Initial-Order: gleiche Logik wie Default-Sort (Startzeit → Nr → Titel)
     state.stItemOrder[state.stFocusDate] = items
       .slice()
-      .sort((a, b) => (a.t || '').localeCompare(b.t || ''))
+      .sort((a, b) => {
+        const ta = (a.stz || '99:99').toString();
+        const tb = (b.stz || '99:99').toString();
+        if (ta !== tb) return ta.localeCompare(tb);
+        const na = (a.tra || '999').toString();
+        const nb = (b.tra || '999').toString();
+        const cmp = na.localeCompare(nb, undefined, { numeric: true });
+        if (cmp !== 0) return cmp;
+        return (a.t || '').localeCompare(b.t || '');
+      })
       .map(s => s._id);
   }
   const order = state.stItemOrder[state.stFocusDate];

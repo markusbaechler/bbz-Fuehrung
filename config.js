@@ -40,7 +40,7 @@ window.BBZ_CONFIG = {
   columns: {
     fusi: ['FüSi', 'Thema', 'Aktion', 'erfasst durch', 'Input - (durch Themengeber/in auszufüllen)', 'Link (Optional)', 'Gedanken im Vorfeld oder bei Abwesenheit', 'Output', 'Status'],
     earlyBird: ['Datum', 'Botschaft', 'wer im Lead', 'Kommentare & Ergänzungen'],
-    strategietage: ['Strategietag', 'Thema', 'Kategorie', 'erfasst durch', 'Input ', 'Link (Optional)', 'Gedanken im Vorfeld oder bei Abwesenheit', 'Output - Entscheid', 'Status'],
+    strategietage: ['Strategietag', 'Thema', 'Kategorie', 'erfasst durch', 'Input ', 'Link (Optional)', 'Gedanken im Vorfeld oder bei Abwesenheit', 'Traktandum', 'Startzeit', 'Zeitbudget', 'Output - Entscheid', 'Status'],
     offsite: ['Offsite', 'Thema', 'Lead', 'Schlüsselfrage/n', 'Ziel/e', 'Traktandum', 'Vorbereitungsauftrag', 'Tag', 'Startzeit', 'Zeitbudget', 'Bemerkungen / Links ', 'Entscheide', 'Status'],
     teamtage: ['Teamtag', 'Thema', 'Idee / Beschreibung', 'Was wollen wir damit erreichen?', 'eingereicht durch', 'Zeitbudget am Teamtag', 'Link ', 'Nächster Schritt - Auftrag', 'Verantwortlich', 'Status'],
     // Agenda: 27 Spalten total. Nur Index 0-8, 16-17, 25-26 werden von der App geschrieben.

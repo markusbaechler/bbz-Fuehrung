@@ -89,7 +89,8 @@ const Store = (() => {
     item.s || ''
   ];
 
-  // Strategietage columns: Strategietag, Thema, Kategorie, erfasst durch, Input, Link, Gedanken, Output, Status
+  // Strategietage columns: Strategietag, Thema, Kategorie, erfasst durch, Input, Link,
+  //                        Gedanken, Traktandum, Startzeit, Zeitbudget, Output, Status
   const mapStRow = (row) => ({
     _index: row._index,
     _id: `st_${row._index}`,
@@ -100,8 +101,11 @@ const Store = (() => {
     i: row._values[4],
     l: row._values[5],
     g: row._values[6],
-    o: row._values[7],
-    s: (row._values[8] || '').toString().trim()
+    tra: row._values[7],
+    stz: xlTime(row._values[8]),
+    zb: xlDuration(row._values[9]),
+    o: row._values[10],
+    s: (row._values[11] || '').toString().trim()
   });
   const stToRow = (item) => [
     item.d || '',
@@ -111,6 +115,9 @@ const Store = (() => {
     item.i || '',
     item.l || '',
     item.g || '',
+    item.tra || '',
+    item.stz || '',
+    item.zb || '',
     item.o || '',
     item.s || ''
   ];
